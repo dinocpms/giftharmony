@@ -7,6 +7,7 @@ class ApiService {
   constructor() {
     this.baseURL = API_BASE_URL;
     this.token = localStorage.getItem('auth_token');
+    console.log('API Base URL:', this.baseURL);
   }
 
   private getHeaders(): HeadersInit {
@@ -22,8 +23,13 @@ class ApiService {
   }
 
   private async handleResponse<T>(response: Response): Promise<T> {
+    console.log(`API Response: ${response.status} ${response.statusText}`);
+    
     if (!response.ok) {
-      const error = await response.json().catch(() => ({ message: 'Network error' }));
+      const error = await response.json().catch(() => ({ 
+        message: `HTTP error! status: ${response.status}` 
+      }));
+      console.error('API Error:', error);
       throw new Error(error.message || `HTTP error! status: ${response.status}`);
     }
 
@@ -47,6 +53,7 @@ class ApiService {
     last_name: string;
     phone?: string;
   }) {
+    console.log('Calling register API:', `${this.baseURL}/auth/register`);
     const response = await fetch(`${this.baseURL}/auth/register`, {
       method: 'POST',
       headers: this.getHeaders(),
@@ -57,6 +64,7 @@ class ApiService {
   }
 
   async login(credentials: { email: string; password: string }) {
+    console.log('Calling login API:', `${this.baseURL}/auth/login`);
     const response = await fetch(`${this.baseURL}/auth/login`, {
       method: 'POST',
       headers: this.getHeaders(),
@@ -67,6 +75,7 @@ class ApiService {
   }
 
   async getCurrentUser() {
+    console.log('Calling getCurrentUser API:', `${this.baseURL}/auth/me`);
     const response = await fetch(`${this.baseURL}/auth/me`, {
       headers: this.getHeaders(),
     });
@@ -87,7 +96,9 @@ class ApiService {
     if (params?.page) searchParams.append('page', params.page.toString());
     if (params?.limit) searchParams.append('limit', params.limit.toString());
 
-    const response = await fetch(`${this.baseURL}/products?${searchParams}`, {
+    const url = `${this.baseURL}/products?${searchParams}`;
+    console.log('Calling getProducts API:', url);
+    const response = await fetch(url, {
       headers: this.getHeaders(),
     });
 
@@ -95,56 +106,9 @@ class ApiService {
   }
 
   async getProduct(id: number) {
+    console.log('Calling getProduct API:', `${this.baseURL}/products/${id}`);
     const response = await fetch(`${this.baseURL}/products/${id}`, {
       headers: this.getHeaders(),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  async createProduct(productData: any) {
-    const response = await fetch(`${this.baseURL}/products`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(productData),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  async updateProduct(id: number, productData: any) {
-    const response = await fetch(`${this.baseURL}/products/${id}`, {
-      method: 'PUT',
-      headers: this.getHeaders(),
-      body: JSON.stringify(productData),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  async deleteProduct(id: number) {
-    const response = await fetch(`${this.baseURL}/products/${id}`, {
-      method: 'DELETE',
-      headers: this.getHeaders(),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  // Categories endpoints
-  async getCategories() {
-    const response = await fetch(`${this.baseURL}/categories`, {
-      headers: this.getHeaders(),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  async createCategory(categoryData: any) {
-    const response = await fetch(`${this.baseURL}/categories`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(categoryData),
     });
 
     return this.handleResponse(response);
@@ -152,6 +116,7 @@ class ApiService {
 
   // Cart endpoints
   async getCart() {
+    console.log('Calling getCart API:', `${this.baseURL}/cart`);
     const response = await fetch(`${this.baseURL}/cart`, {
       headers: this.getHeaders(),
     });
@@ -160,6 +125,7 @@ class ApiService {
   }
 
   async addToCart(productId: number, quantity: number = 1) {
+    console.log('Calling addToCart API:', `${this.baseURL}/cart`);
     const response = await fetch(`${this.baseURL}/cart`, {
       method: 'POST',
       headers: this.getHeaders(),
@@ -170,6 +136,7 @@ class ApiService {
   }
 
   async updateCartItem(id: number, quantity: number) {
+    console.log('Calling updateCartItem API:', `${this.baseURL}/cart/${id}`);
     const response = await fetch(`${this.baseURL}/cart/${id}`, {
       method: 'PUT',
       headers: this.getHeaders(),
@@ -180,6 +147,7 @@ class ApiService {
   }
 
   async removeFromCart(id: number) {
+    console.log('Calling removeFromCart API:', `${this.baseURL}/cart/${id}`);
     const response = await fetch(`${this.baseURL}/cart/${id}`, {
       method: 'DELETE',
       headers: this.getHeaders(),
@@ -189,7 +157,39 @@ class ApiService {
   }
 
   async clearCart() {
+    console.log('Calling clearCart API:', `${this.baseURL}/cart`);
     const response = await fetch(`${this.baseURL}/cart`, {
+      method: 'DELETE',
+      headers: this.getHeaders(),
+    });
+
+    return this.handleResponse(response);
+  }
+
+  // Wishlist endpoints
+  async getWishlist() {
+    console.log('Calling getWishlist API:', `${this.baseURL}/wishlist`);
+    const response = await fetch(`${this.baseURL}/wishlist`, {
+      headers: this.getHeaders(),
+    });
+
+    return this.handleResponse(response);
+  }
+
+  async addToWishlist(productId: number) {
+    console.log('Calling addToWishlist API:', `${this.baseURL}/wishlist`);
+    const response = await fetch(`${this.baseURL}/wishlist`, {
+      method: 'POST',
+      headers: this.getHeaders(),
+      body: JSON.stringify({ product_id: productId }),
+    });
+
+    return this.handleResponse(response);
+  }
+
+  async removeFromWishlistByProduct(productId: number) {
+    console.log('Calling removeFromWishlistByProduct API:', `${this.baseURL}/wishlist/product/${productId}`);
+    const response = await fetch(`${this.baseURL}/wishlist/product/${productId}`, {
       method: 'DELETE',
       headers: this.getHeaders(),
     });
@@ -199,6 +199,7 @@ class ApiService {
 
   // Orders endpoints
   async getOrders() {
+    console.log('Calling getOrders API:', `${this.baseURL}/orders`);
     const response = await fetch(`${this.baseURL}/orders`, {
       headers: this.getHeaders(),
     });
@@ -210,177 +211,11 @@ class ApiService {
     items: Array<{ product_id: number; quantity: number }>;
     shipping_address: string;
   }) {
+    console.log('Calling createOrder API:', `${this.baseURL}/orders`);
     const response = await fetch(`${this.baseURL}/orders`, {
       method: 'POST',
       headers: this.getHeaders(),
       body: JSON.stringify(orderData),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  // Wishlist endpoints
-  async getWishlist() {
-    const response = await fetch(`${this.baseURL}/wishlist`, {
-      headers: this.getHeaders(),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  async addToWishlist(productId: number) {
-    const response = await fetch(`${this.baseURL}/wishlist`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify({ product_id: productId }),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  async removeFromWishlist(id: number) {
-    const response = await fetch(`${this.baseURL}/wishlist/${id}`, {
-      method: 'DELETE',
-      headers: this.getHeaders(),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  async removeFromWishlistByProduct(productId: number) {
-    const response = await fetch(`${this.baseURL}/wishlist/product/${productId}`, {
-      method: 'DELETE',
-      headers: this.getHeaders(),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  // Reviews endpoints
-  async getProductReviews(productId: number) {
-    const response = await fetch(`${this.baseURL}/reviews/product/${productId}`, {
-      headers: this.getHeaders(),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  async createReview(reviewData: {
-    product_id: number;
-    rating: number;
-    comment: string;
-  }) {
-    const response = await fetch(`${this.baseURL}/reviews`, {
-      method: 'POST',
-      headers: this.getHeaders(),
-      body: JSON.stringify(reviewData),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  // User endpoints
-  async getUserProfile() {
-    const response = await fetch(`${this.baseURL}/users/profile`, {
-      headers: this.getHeaders(),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  async updateUserProfile(profileData: {
-    first_name: string;
-    last_name: string;
-    phone?: string;
-  }) {
-    const response = await fetch(`${this.baseURL}/users/profile`, {
-      method: 'PUT',
-      headers: this.getHeaders(),
-      body: JSON.stringify(profileData),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  async changePassword(passwordData: {
-    current_password: string;
-    new_password: string;
-  }) {
-    const response = await fetch(`${this.baseURL}/users/password`, {
-      method: 'PUT',
-      headers: this.getHeaders(),
-      body: JSON.stringify(passwordData),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  // Admin endpoints
-  async getAdminStats() {
-    const response = await fetch(`${this.baseURL}/admin/stats`, {
-      headers: this.getHeaders(),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  async getSalesAnalytics(period: string = 'month') {
-    const response = await fetch(`${this.baseURL}/admin/analytics/sales?period=${period}`, {
-      headers: this.getHeaders(),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  async getProductAnalytics() {
-    const response = await fetch(`${this.baseURL}/admin/analytics/products`, {
-      headers: this.getHeaders(),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  async getAllOrders() {
-    const response = await fetch(`${this.baseURL}/orders/admin`, {
-      headers: this.getHeaders(),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  async updateOrderStatus(orderId: number, status: string) {
-    const response = await fetch(`${this.baseURL}/orders/${orderId}/status`, {
-      method: 'PUT',
-      headers: this.getHeaders(),
-      body: JSON.stringify({ status }),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  async getAllUsers() {
-    const response = await fetch(`${this.baseURL}/users/admin`, {
-      headers: this.getHeaders(),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  async updateUserStatus(userId: number, isActive: boolean) {
-    const response = await fetch(`${this.baseURL}/users/admin/${userId}/status`, {
-      method: 'PUT',
-      headers: this.getHeaders(),
-      body: JSON.stringify({ is_active: isActive }),
-    });
-
-    return this.handleResponse(response);
-  }
-
-  async updateUserRole(userId: number, role: string) {
-    const response = await fetch(`${this.baseURL}/users/admin/${userId}/role`, {
-      method: 'PUT',
-      headers: this.getHeaders(),
-      body: JSON.stringify({ role }),
     });
 
     return this.handleResponse(response);
