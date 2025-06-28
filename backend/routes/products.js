@@ -18,41 +18,49 @@ router.get('/', async (req, res) => {
       WHERE p.is_active = true
     `;
     const params = [];
+    let paramCount = 0;
 
     if (category) {
-      query += ' AND p.category_id = ?';
+      paramCount++;
+      query += ` AND p.category_id = $${paramCount}`;
       params.push(category);
     }
 
     if (search) {
-      query += ' AND (p.name LIKE ? OR p.description LIKE ?)';
+      paramCount++;
+      query += ` AND (p.name ILIKE $${paramCount} OR p.description ILIKE $${paramCount + 1})`;
       params.push(`%${search}%`, `%${search}%`);
+      paramCount++;
     }
 
-    query += ' ORDER BY p.created_at DESC LIMIT ? OFFSET ?';
+    paramCount++;
+    query += ` ORDER BY p.created_at DESC LIMIT $${paramCount} OFFSET $${paramCount + 1}`;
     params.push(parseInt(limit), parseInt(offset));
 
-    const [products] = await pool.execute(query, params);
+    const result = await pool.query(query, params);
 
     // Get total count
     let countQuery = 'SELECT COUNT(*) as total FROM products WHERE is_active = true';
     const countParams = [];
+    let countParamCount = 0;
 
     if (category) {
-      countQuery += ' AND category_id = ?';
+      countParamCount++;
+      countQuery += ` AND category_id = $${countParamCount}`;
       countParams.push(category);
     }
 
     if (search) {
-      countQuery += ' AND (name LIKE ? OR description LIKE ?)';
+      countParamCount++;
+      countQuery += ` AND (name ILIKE $${countParamCount} OR description ILIKE $${countParamCount + 1})`;
       countParams.push(`%${search}%`, `%${search}%`);
     }
 
-    const [countResult] = await pool.execute(countQuery, countParams);
-    const total = countResult[0].total;
+    const countResult = await pool.query(countQuery, countParams);
+    const total = parseInt(countResult.rows[0].total);
 
     res.json({
-      products,
+      products: result.rows,
       pagination: {
         page: parseInt(page),
         limit: parseInt(limit),
@@ -69,19 +77,19 @@ router.get('/', async (req, res) => {
 // Get product by ID
 router.get('/:id', async (req, res) => {
   try {
-    const [products] = await pool.execute(
+    const result = await pool.query(
       `SELECT p.*, c.name as category_name 
        FROM products p 
        LEFT JOIN categories c ON p.category_id = c.id 
-       WHERE p.id = ? AND p.is_active = true`,
+       WHERE p.id = $1 AND p.is_active = true`,
       [req.params.id]
     );
 
-    if (products.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    res.json(products[0]);
+    res.json(result.rows[0]);
   } catch (error) {
     console.error('Get product error:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -93,22 +101,14 @@ router.post('/', authenticateToken, requireAdmin, validateRequest(schemas.produc
   try {
     const { name, description, price, category_id, stock_quantity, image_url } = req.body;
 
-    const [result] = await pool.execute(
-      'INSERT INTO products (name, description, price, category_id, stock_quantity, image_url) VALUES (?, ?, ?, ?, ?, ?)',
+    const result = await pool.query(
+      'INSERT INTO products (name, description, price, category_id, stock_quantity, image_url) VALUES ($1, $2, $3, $4, $5, $6) RETURNING *',
       [name, description, price, category_id, stock_quantity, image_url]
     );
 
     res.status(201).json({
       message: 'Product created successfully',
-      product: {
-        id: result.insertId,
-        name,
-        description,
-        price,
-        category_id,
-        stock_quantity,
-        image_url
-      }
+      product: result.rows[0]
     });
   } catch (error) {
     console.error('Create product error:', error);
@@ -121,16 +121,19 @@ router.put('/:id', authenticateToken, requireAdmin, validateRequest(schemas.prod
   try {
     const { name, description, price, category_id, stock_quantity, image_url } = req.body;
 
-    const [result] = await pool.execute(
-      'UPDATE products SET name = ?, description = ?, price = ?, category_id = ?, stock_quantity = ?, image_url = ? WHERE id = ?',
+    const result = await pool.query(
+      'UPDATE products SET name = $1, description = $2, price = $3, category_id = $4, stock_quantity = $5, image_url = $6, updated_at = CURRENT_TIMESTAMP WHERE id = $7 RETURNING *',
       [name, description, price, category_id, stock_quantity, image_url, req.params.id]
     );
 
-    if (result.affectedRows === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Product not found' });
     }
 
-    res.json({ message: 'Product updated successfully' });
+    res.json({ 
+      message: 'Product updated successfully',
+      product: result.rows[0]
+    });
   } catch (error) {
     console.error('Update product error:', error);
     res.status(500).json({ message: 'Internal server error' });
@@ -140,12 +143,12 @@ router.put('/:id', authenticateToken, requireAdmin, validateRequest(schemas.prod
 // Delete product (Admin only)
 router.delete('/:id', authenticateToken, requireAdmin, async (req, res) => {
   try {
-    const [result] = await pool.execute(
-      'UPDATE products SET is_active = false WHERE id = ?',
+    const result = await pool.query(
+      'UPDATE products SET is_active = false WHERE id = $1 RETURNING *',
       [req.params.id]
     );
 
-    if (result.affectedRows === 0) {
+    if (result.rows.length === 0) {
       return res.status(404).json({ message: 'Product not found' });
     }
 

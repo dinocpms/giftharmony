@@ -13,12 +13,12 @@ router.post('/register', validateRequest(schemas.register), async (req, res) => 
     const { email, password, first_name, last_name, phone } = req.body;
 
     // Check if user already exists
-    const [existingUsers] = await pool.execute(
-      'SELECT id FROM users WHERE email = ?',
+    const existingUser = await pool.query(
+      'SELECT id FROM users WHERE email = $1',
       [email]
     );
 
-    if (existingUsers.length > 0) {
+    if (existingUser.rows.length > 0) {
       return res.status(400).json({ message: 'User already exists' });
     }
 
@@ -26,23 +26,23 @@ router.post('/register', validateRequest(schemas.register), async (req, res) => 
     const hashedPassword = await bcrypt.hash(password, 10);
 
     // Create user
-    const [result] = await pool.execute(
-      'INSERT INTO users (email, password, first_name, last_name, phone) VALUES (?, ?, ?, ?, ?)',
+    const result = await pool.query(
+      'INSERT INTO users (email, password, first_name, last_name, phone) VALUES ($1, $2, $3, $4, $5) RETURNING id',
       [email, hashedPassword, first_name, last_name, phone]
     );
 
     // Generate JWT token
     const token = jwt.sign(
-      { userId: result.insertId },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      { userId: result.rows[0].id },
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
     res.status(201).json({
       message: 'User created successfully',
       token,
       user: {
-        id: result.insertId,
+        id: result.rows[0].id,
         email,
         first_name,
         last_name
@@ -60,16 +60,16 @@ router.post('/login', validateRequest(schemas.login), async (req, res) => {
     const { email, password } = req.body;
 
     // Find user
-    const [users] = await pool.execute(
-      'SELECT id, email, password, first_name, last_name, role FROM users WHERE email = ? AND is_active = true',
+    const result = await pool.query(
+      'SELECT id, email, password, first_name, last_name, role FROM users WHERE email = $1 AND is_active = true',
       [email]
     );
 
-    if (users.length === 0) {
+    if (result.rows.length === 0) {
       return res.status(401).json({ message: 'Invalid credentials' });
     }
 
-    const user = users[0];
+    const user = result.rows[0];
 
     // Check password
     const isValidPassword = await bcrypt.compare(password, user.password);
@@ -80,8 +80,8 @@ router.post('/login', validateRequest(schemas.login), async (req, res) => {
     // Generate JWT token
     const token = jwt.sign(
       { userId: user.id },
-      process.env.JWT_SECRET,
-      { expiresIn: process.env.JWT_EXPIRES_IN }
+      process.env.JWT_SECRET || 'your-secret-key',
+      { expiresIn: process.env.JWT_EXPIRES_IN || '7d' }
     );
 
     res.json({
